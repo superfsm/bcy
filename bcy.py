@@ -131,7 +131,8 @@ def dispatcher(Q):
         while True:
             try:
                 resp = sess.get(link, timeout=5)
-            except requests.exceptions.Timeout:
+            except requests.exceptions.ConnectionError:
+            #except requests.exceptions.Timeout:
                 sess = requests.Session()
                 time.sleep(30)
                 continue
