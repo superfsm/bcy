@@ -112,8 +112,8 @@ def dispatcher(Q):
 
     #already have 255922 - 252674
     # 638278 - 599893
-    for i in range(582957,255922,-1):
-        #time.sleep(1)
+    for i in range(582895,255922,-1):
+        time.sleep(1)
 
         if platform.system() == 'Windows' and msvcrt.kbhit():
             keyPress=msvcrt.getch()
