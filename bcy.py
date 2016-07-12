@@ -126,19 +126,33 @@ def dispatcher(Q):
         print '-------------------------------------',i
         link = 'http://bcy.net/coser/detail/1/'+str(i)
 
-        r = sess.get(link)
+        content = None
 
-        if r.status_code != 200:
-            print '***** SCANNING ERROR, ret =',r.status_code
-            continue
+        while True:
+            try:
+                resp = sess.get(link, timeout=5)
+            except requests.exceptions.Timeout:
+                sess = requests.Session()
+                time.sleep(30)
+                continue
 
-        content = r.text
+            # Check return code
+            if resp.status_code == 404:
+                break
 
-        with open("Output.html", "w") as f:
-           f.write(content.encode("utf-8", "replace"))
+            if not resp.status_code == 200:
+                print '------------------------------------- RET =', resp.status_code
+                sess = requests.Session()
+                time.sleep(30)
+                continue
 
-        if  content.find(u'[正片]') == -1:
-            # print 'Skip'
+            content = resp.text
+            break;
+
+        #with open("Output.html", "w") as f:
+        #   f.write(content.encode("utf-8", "replace"))
+
+        if content==None or content.find(u'[正片]') == -1:
             continue
 
         match = re.findall('<img class=\'detail_std detail_clickable\' src=\'(\S*?)(?:|/w650)\' />', content)
