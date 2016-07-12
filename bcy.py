@@ -133,6 +133,7 @@ def dispatcher(Q):
                 resp = sess.get(link, timeout=5)
             except requests.exceptions.ConnectionError:
             #except requests.exceptions.Timeout:
+                print '------------------------------------- Sleep 30s'
                 sess = requests.Session()
                 time.sleep(30)
                 continue
