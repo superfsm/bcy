@@ -111,8 +111,8 @@ def dispatcher(Q):
     sess = requests.Session()
 
     #already have 255922 - 252674
-    # 638278
-    for i in range(605629,255922,-1):
+    # 638278 - 599893
+    for i in range(584846,255922,-1):
         #time.sleep(1)
 
         if platform.system() == 'Windows' and msvcrt.kbhit():
@@ -151,14 +151,14 @@ def dispatcher(Q):
 
         for m in match:
             if not 'photo' in m:
-                print 'put',m
+                #print 'put',m
                 if len(m) > 100:
                     continue
                 yield (str(i),m)
 
 def main():
 
-    THREAD_NUMBER = 10
+    THREAD_NUMBER = 5
 
     Q = Queue.PriorityQueue()
     keyPress=None
