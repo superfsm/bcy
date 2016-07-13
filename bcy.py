@@ -25,26 +25,55 @@ def reporthook(a,b,c):
     sys.stdout.write("\r% 3.1f%% of %d bytes" % (min(100, float(a * b) / c * 100), c))
     sys.stdout.flush()
 
-def download(name, sess, url, path):
+def url_get_retry(sess, name, url):
 
-    if not os.path.isfile(path):
+    TIMEOUT = 5
+    RETRY_AFTER = 30
+    MAX_RETRY = 3
+
+    retry = 0
+    while True:
+        retry += 1
+        if retry > MAX_RETRY:
+            sys.stdout.write('*MAX_RETRY '+name+' '+ url +'\n')
+            return None
+
         try:
-            resp = sess.get(url)
+            resp = sess.get(url, timeout=TIMEOUT)
+        except requests.exceptions.ConnectionError:
+            sys.stdout.write('*TIMEOUT '+name+' '+ url +'\n')
+            time.sleep(RETRY_AFTER)
+            continue
 
-            # Check return code
-            if resp.status_code == 404:
-                return True
-            if not resp.status_code == 200:
-                sys.stdout.write('*RET '+name+', code = '+str(resp.status_code)+' '+ url +'\n')
-                return False
+        # Check return code
+        if resp.status_code == 404:
+            return None
 
-            # Check length
+        if not resp.status_code == 200:
+            sys.stdout.write('*RET '+name+', code = '+str(resp.status_code)+' '+ url +'\n')
+            time.sleep(RETRY_AFTER)
+            continue
+
+        # Check length
+        if resp.headers.get('content-length') is not None:
             total_length = int(resp.headers.get('content-length'))
             actual_length = len(resp.content)
             if not total_length == actual_length:
-                sys.stdout.write('*SHORT '+name+', '+str(actual_length)+' of '+str(total_length)+' '+ url +'\n')
-                return False
+                sys.stdout.write('*SHORT '+name+', '+str(actual_length)+' of '+str(total_length)+' '+ url + '\n')
+                time.sleep(RETRY_AFTER)
+                continue
 
+        return resp
+
+# return Boolean
+def downloadFile(name, sess, url, path):
+
+    if not os.path.isfile(path):
+        try:
+            resp = url_get_retry(sess,name,url)
+
+            if resp is None:
+                return False
             # Write to file
             with open(path, 'wb') as file:
                 resp.raw.decode_content = True
@@ -81,7 +110,7 @@ def worker(sess, msg):
         pass
 
     path = directory+'/'+filename
-    return download(str(post), sess, url, path);
+    return downloadFile(str(post), sess, url, path);
 
 def proc(Q):
 
@@ -101,10 +130,10 @@ def proc(Q):
             sys.stdout.write('['+current_thread().getName()+'] quit\n')
             break
 
-        if not worker(sess,item[1]):
-            time.sleep(30)
-            # sess = requests.Session()
-            Q.put((0,item[1]))
+        worker(sess,item[1])
+        #if not worker(sess,item[1]):
+        #    time.sleep(30)
+        #    Q.put((0,item[1]))
 
 def dispatcher(Q):
 
@@ -112,8 +141,8 @@ def dispatcher(Q):
 
     #already have 255922 - 252674
     # 638278 - 599893
-    for i in range(582704,255922,-1):
-        time.sleep(1)
+    for i in range(581581,255922,-1):
+        time.sleep(0.33)
 
         if platform.system() == 'Windows' and msvcrt.kbhit():
             keyPress=msvcrt.getch()
@@ -123,33 +152,17 @@ def dispatcher(Q):
         else:
             keyPress=None
 
-        print '-------------------------------------',i
-        link = 'http://bcy.net/coser/detail/1/'+str(i)
+        sys.stdout.write('-------------------------------------'+str(i)+'\n')
+        url = 'http://bcy.net/coser/detail/1/'+str(i)
 
         content = None
 
-        while True:
-            try:
-                resp = sess.get(link, timeout=5)
-            except requests.exceptions.ConnectionError:
-            #except requests.exceptions.Timeout:
-                print '------------------------------------- Sleep 30s'
-                sess = requests.Session()
-                time.sleep(30)
-                continue
+        resp = url_get_retry(sess,'dispatcher',url)
 
-            # Check return code
-            if resp.status_code == 404:
-                break
+        if resp is None:
+            continue
 
-            if not resp.status_code == 200:
-                print '------------------------------------- RET =', resp.status_code
-                sess = requests.Session()
-                time.sleep(30)
-                continue
-
-            content = resp.text
-            break;
+        content = resp.text
 
         #with open("Output.html", "w") as f:
         #   f.write(content.encode("utf-8", "replace"))
