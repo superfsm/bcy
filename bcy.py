@@ -40,7 +40,7 @@ def url_get_retry(sess, name, url):
 
         try:
             resp = sess.get(url, timeout=TIMEOUT)
-        except requests.exceptions.ConnectionError:
+        except requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout:
             sys.stdout.write('*TIMEOUT '+name+' '+ url +'\n')
             time.sleep(RETRY_AFTER)
             continue
@@ -141,7 +141,7 @@ def dispatcher(Q):
 
     #already have 255922 - 252674
     # 638278 - 599893
-    for i in range(581581,255922,-1):
+    for i in range(581153,255922,-1):
         time.sleep(0.33)
 
         if platform.system() == 'Windows' and msvcrt.kbhit():
