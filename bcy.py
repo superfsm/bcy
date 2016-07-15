@@ -1,48 +1,48 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 
-import urllib, urllib2, cookielib
-from HTMLParser import HTMLParser
-import requests
-import shutil
-import traceback
-import re
 import os
+import platform
 import Queue
+import re
+import sys
+import time
+import traceback
 from threading import Thread
 from threading import current_thread
-import sys
-import socket
-import time
-import platform
+
+import requests
 if platform.system() == 'Windows':
     import msvcrt
 
-def reporthook(a,b,c):
+
+def reporthook(a, b, c):
     # ',' at the end of the line is important!
     # print "% 3.1f%% of %d bytes\r" % (min(100, float(a * b) / c * 100), c),
-    #you can also use sys.stdout.write
-    sys.stdout.write("\r% 3.1f%% of %d bytes" % (min(100, float(a * b) / c * 100), c))
+    # you can also use sys.stdout.write
+    sys.stdout.write("% 3.1f%% of %d bytes" %
+                     (min(100, float(a * b) / c * 100), c))
     sys.stdout.flush()
 
-def url_get_retry(sess, name, url):
 
-    TIMEOUT = 5
-    RETRY_AFTER = 30
-    MAX_RETRY = 3
+def url_get_retry(sess, tag, url):
+
+    _TIMEOUT = 5
+    _RETRY_AFTER = 30
+    _MAX_RETRY = 3
 
     retry = 0
     while True:
         retry += 1
-        if retry > MAX_RETRY:
-            sys.stdout.write('*MAX_RETRY '+name+' '+ url +'\n')
+        if retry > _MAX_RETRY:
+            sys.stdout.write('*MAX_RETRY %s %s\n' % (tag, url))
             return None
 
         try:
-            resp = sess.get(url, timeout=TIMEOUT)
-        except (requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
-            sys.stdout.write('*TIMEOUT '+name+' '+ url +'\n')
-            time.sleep(RETRY_AFTER)
+            resp = sess.get(url, timeout=_TIMEOUT)
+        except requests.exceptions.ConnectionError:
+            sys.stdout.write('*TIMEOUT %s %s\n' % (tag, url))
+            time.sleep(_RETRY_AFTER)
             continue
         except:
             exc_info = sys.exc_info()
@@ -52,11 +52,14 @@ def url_get_retry(sess, name, url):
 
         # Check return code
         if resp.status_code == 404:
+            sys.stdout.write('*RET %s, code = %d, %s\n' %
+                             (tag, resp.status_code, url))
             return None
 
         if not resp.status_code == 200:
-            sys.stdout.write('*RET '+name+', code = '+str(resp.status_code)+' '+ url +'\n')
-            time.sleep(RETRY_AFTER)
+            sys.stdout.write('*RET %s, code = %d, %s\n' %
+                             (tag, resp.status_code, url))
+            time.sleep(_RETRY_AFTER)
             continue
 
         # Check length
@@ -64,18 +67,21 @@ def url_get_retry(sess, name, url):
             total_length = int(resp.headers.get('content-length'))
             actual_length = len(resp.content)
             if not total_length == actual_length:
-                sys.stdout.write('*SHORT '+name+', '+str(actual_length)+' of '+str(total_length)+' '+ url + '\n')
-                time.sleep(RETRY_AFTER)
+                sys.stdout.write('*SHORT %s (%d of %d) %s\n' %
+                                 (tag, actual_length, total_length, url))
+                time.sleep(_RETRY_AFTER)
                 continue
 
         return resp
 
 # return Boolean
-def downloadFile(name, sess, url, path):
+
+
+def download_file(tag, sess, url, path):
 
     if not os.path.isfile(path):
         try:
-            resp = url_get_retry(sess,name,url)
+            resp = url_get_retry(sess, tag, url)
 
             if resp is None:
                 return False
@@ -95,29 +101,32 @@ def downloadFile(name, sess, url, path):
 
     return True
 
+
 def worker(sess, msg):
-    #threadName = current_thread().getName()
+    # threadName = current_thread().getName()
 
     post = msg[0]
     url = msg[1]
-    sys.stdout.write('PROC '+str(post)+' '+ url +'\n')
+    # sys.stdout.write('PROC %s %s\n' % (post, url))
 
-
-    filename = re.match('.*/(.*)',url).group(1)
-    #filename = re.match('.*/(.*\.(?:jpg|gif|jpeg|png))',url).group(1)
-    directory = 'download/'+str(post)
+    filename = re.match('.*/(.*)', url).group(1)
+    # filename = re.match('.*/(.*\.(?:jpg|gif|jpeg|png))',url).group(1)
+    directory = 'download/' + post
 
     try:
         os.makedirs(directory)
     except:
-        #exc_info = sys.exc_info()
-        #traceback.print_exception(*exc_info)
+        # exc_info = sys.exc_info()
+        # traceback.print_exception(*exc_info)
         pass
 
-    path = directory+'/'+filename
-    return downloadFile(str(post), sess, url, path);
+    path = directory + '/' + filename
+    download_file(post, sess, url, path)
+    sys.stdout.write('DONE %s %s\n' % (post, url))
+    return True
 
-def proc(Q):
+
+def _consumer(Q):
 
     # Q item: (cmd,msg)
     # cmd: 99   quit
@@ -132,85 +141,85 @@ def proc(Q):
         time.sleep(1)
 
         if item[0] is 99:
-            sys.stdout.write('['+current_thread().getName()+'] quit\n')
+            sys.stdout.write('[%s] quit\n' % current_thread().getName())
             break
 
-        worker(sess,item[1])
-        #if not worker(sess,item[1]):
-        #    time.sleep(30)
-        #    Q.put((0,item[1]))
+        worker(sess, item[1])
 
-def dispatcher(Q):
+
+def producer(Q):
 
     sess = requests.Session()
 
-    #already have 255922 - 252674
+    # already have 255922 - 252674
     # 638278 - 599893
     for i in range(493687,255922,-1):
         time.sleep(0.5)
 
         if platform.system() == 'Windows' and msvcrt.kbhit():
-            keyPress=msvcrt.getch()
+            keyPress = msvcrt.getch()
             if keyPress == 's':
-                print 'Key Press: '+ keyPress
+                print 'Key Press: ' + keyPress
                 break
         else:
-            keyPress=None
+            keyPress = None
 
-        sys.stdout.write('-------------------------------------'+str(i)+'\n')
-        url = 'http://bcy.net/coser/detail/1/'+str(i)
+        sys.stdout.write('-------------------------------------%d\n' % i)
+        url = 'http://bcy.net/coser/detail/1/' + str(i)
 
         content = None
 
-        resp = url_get_retry(sess,'dispatcher',url)
+        resp = url_get_retry(sess, 'producer', url)
 
         if resp is None:
             continue
 
         content = resp.text
 
-        #with open("Output.html", "w") as f:
+        # with open("Output.html", "w") as f:
         #   f.write(content.encode("utf-8", "replace"))
 
-        if content==None or content.find(u'[正片]') == -1:
+        if content is None or content.find(u'[正片]') == -1:
             continue
 
-        match = re.findall('<img class=\'detail_std detail_clickable\' src=\'(\S*?)(?:|/w650)\' />', content)
-        #match = re.findall('.*?detail_clickable.*?(http://img.+?\.bcyimg.com/.*?\.(?:jpg|gif|jpeg|png)).*?', content)
-        #print match
-        #exit(1)
+        match = re.findall(
+            '<img class=\'detail_std detail_clickable\' src=\'(\S*?)(?:|/w650)\' />', content)
+        # match = re.findall('.*?detail_clickable.*?(http://img.+?\.bcyimg.com/.*?\.(?:jpg|gif|jpeg|png)).*?', content)
+        # print match
+        # exit(1)
 
         if len(match) == 0:
             continue
 
         for m in match:
             if not 'photo' in m:
-                #print 'put',m
+                # print 'put',m
                 if len(m) > 100:
                     continue
-                yield (str(i),m)
+                yield (str(i), m)
+
 
 def main():
 
-    THREAD_NUMBER = 5
+    _THREAD_NUMBER = 5
 
     Q = Queue.PriorityQueue()
-    keyPress=None
+    keyPress = None
 
     workers = []
-    for i in range(THREAD_NUMBER):
-        worker = Thread(target=proc, args=(Q,))
+    for i in range(_THREAD_NUMBER):
+        worker = Thread(target=_consumer, args=(Q,), name=str(i + 1))
         worker.setDaemon(True)
         worker.start()
         workers.append(worker)
 
-    for msg in dispatcher(Q):
-        while Q.qsize() > 2 * THREAD_NUMBER:
+    for msg in producer(Q):
+        while Q.qsize() > 2 * _THREAD_NUMBER:
             time.sleep(1)
-        Q.put((1,msg))
+        Q.put((1, msg))
 
     for i in range(len(workers)):
-        Q.put((99,None))
+        Q.put((99, None))
 
     print '[Main] Joining Queue'
     Q.join()
